@@ -5,55 +5,75 @@ from oauth2client.file import Storage
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client import tools
 
+service = ""
 
-# *** AUTHORIZATION ***
-FLOW = flow_from_clientsecrets('client_secrets.json',
-                               scope='https://www.googleapis.com/auth/calendar')
 
-storage = Storage('calendar.dat')
-credentials = storage.get()
-if credentials is None or credentials.invalid is True:
-    credentials = tools.run_flow(FLOW, storage)
+def main():
+    # *** AUTHORIZATION ***
+    global service
+    FLOW = flow_from_clientsecrets('client_secrets.json',
+                                   scope='https://www.googleapis.com/auth/calendar')
 
-http = httplib2.Http()
-http = credentials.authorize(http)
+    storage = Storage('calendar.dat')
+    credentials = storage.get()
+    if credentials is None or credentials.invalid is True:
+        credentials = tools.run_flow(FLOW, storage)
 
-service = build(serviceName='calendar', version='v3', http=http)
-# *** END AUTHORIZATION ***
+    http = httplib2.Http()
+    http = credentials.authorize(http)
 
-# Print list of calendars
-page_token = None
-while True:
-    calendar_list = service.calendarList().list(pageToken=page_token).execute()
-    counter = 0
-    for calendar_list_entry in calendar_list['items']:
-        print(str(counter) + ": ", end="")
-        print(calendar_list_entry['summary'])
-        counter += 1
-    page_token = calendar_list.get('nextPageToken')
-    if not page_token:
-        break
+    service = build(serviceName='calendar', version='v3', http=http)
+    # *** END AUTHORIZATION ***
 
-# Ask user to choose which calendar to work with by number
-#  will keep asking until user inputs a number
-while True:
-    try:
-        choice = input("Choose which calendar to read: ")
-        choice = int(choice)
-        break
-    except ValueError:
-        print("Please enter a number")
+    # Print list of calendars
+    page_token = None
+    while True:
+        calendar_list = service.calendarList().list(pageToken=page_token).execute()
+        counter = 0
+        for calendar_list_entry in calendar_list['items']:
+            print(str(counter) + ": ", end="")
+            print(calendar_list_entry['summary'])
+            counter += 1
+        page_token = calendar_list.get('nextPageToken')
+        if not page_token:
+            break
 
-# Get the id number of the chosen calendar
-cal_id = calendar_list['items'][int(choice)]['id']
+    # Ask user to choose which calendar to work with by number
+    #  will keep asking until user inputs a number
+    while True:
+        try:
+            choice = input("Choose which calendar to read: ")
+            choice = int(choice)
+            break
+        except ValueError:
+            print("Please enter a number")
 
-# Print list of events in specific calendar
-page_token = None
-while True:
-    events = service.events().list(calendarId=cal_id,
-                                   pageToken=page_token).execute()
-    for event in events['items']:
-        print(event['summary'])
-        page_token = events.get('nextPageToken')
-    if not page_token:
-        break
+    # Get the id number of the chosen calendar
+    cal_id = calendar_list['items'][int(choice)]['id']
+
+    # Print list of events in specific calendar
+    page_token = None
+    while True:
+        events = service.events().list(calendarId=cal_id,
+                                       pageToken=page_token).execute()
+        for event in events['items']:
+            summary = event['summary']
+            event_id = event['id']
+            if summary == "DAN":
+                set_event_color(cal_id, event_id, '11')
+            page_token = events.get('nextPageToken')
+        if not page_token:
+            break
+
+
+def set_event_color(cal_id, event_id, color_id):
+    # Sets the color of the specified event
+    global service
+    event_selected = service.events().get(calendarId=cal_id,
+                                          eventId=event_id).execute()
+    event_selected['colorId'] = color_id
+    service.events().update(calendarId=cal_id, eventId=event_id,
+                            body=event_selected).execute()
+
+if __name__ == "__main__":
+    main()
